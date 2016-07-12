@@ -1,0 +1,444 @@
+== Dispatching actions ==
+
+This takes a /all actions/ a, list of action lists, and /state/ an
+object a per-device state object for each device.
+
+For each item /tick actions/ in /all actions/:
+
+   Let /conditions/ be a list of conditions that must be met for this
+   tick to complete
+
+   For each /action/ in /tick actions/:
+       Let /device id/ be /action/'s "id" property.
+
+       Let /device type/ be action's "type" property.
+
+       Let /device state/ be the entry in /state/ for the device with
+       id equal to /device id/. If no such state object exists,
+       create a new state object with type /device type/.
+
+       Let /algorithm/ be the algorithm in the right hand column in
+       the table below such that the value in the first column equals
+       /device type/ and the value in the second column equals
+       /action/'s /subtype/ property:
+
+       general  |  pause          |  Dispatch a pause action
+       key      |  keyUp          |  Dispatch a keyUp action
+       key      |  keyDown        |  Dispatch a keyDown action
+       pointer  |  pointerUp      |  Dispatch a pointerUp action
+       pointer  |  pointerDown    |  Dispatch a pointerDown action
+       pointer  |  pointerMove    |  Dispatch a pointerMove action
+       pointer  |  pointerCancel  |  Dispatch a pointerCancel action
+
+       Let /result/ be the result of running /algorithm/ with
+       arguments /device state/, /conditions/ and /action/
+
+       If /result/ is an error return /result/
+
+   Wait until all the conditions in /conditions/ are fulfilled.
+
+//TODO: return values?
+
+== Create a state object ==
+
+Switch on /type/:
+
+    "general"
+      Return an object with no properties (this is never used).
+
+    "key"
+      Return an object with boolean properties "shift", "ctrl"
+      and "meta", and a property "pressed", which maps characters
+      to booleans.
+
+    "pointer"
+      TODO
+
+== Dispatch a pause action ==
+
+Let /duration/ be the duration property of /action/
+
+Add a condition to /conditions/ which fufils when a minimum of
+/duration/ milliseconds have elapsed.
+
+Return success with data null
+
+== Dispatch a keyUp action ==
+
+Let /id/ be /action/'s id property.
+
+Let /value/ be /action/'s value property.
+
+Let /key/, /code/, /canonical value/, and /location/ be the result of
+running the |key code to value algorithm| with arguments /state/ and
+/value/.
+
+// I guess the following step is a good idea
+
+If /device state/'s "pressed" object doesn't have a property
+corresponding to /canonical value/ with value true, return.
+
+Let /alt modifier/ be /device state/'s "alt" property
+
+Let /ctrl modifier/ be /device state/'s "ctrl" property
+
+Let /shift modifier/ be /device state/'s "shift" property
+
+Let /target/ be the |current browsing context|'s |active element|.
+
+Fire a trusted event with the interface KeyboardEvent, and properties
+as in the following table:
+
+type        | "keyup"
+target      | /target/
+detail      | 0
+key         | /key/
+code        | /code/
+location    | /location/
+altKey      | /alt modifier/
+shiftKey    | /ctrl modifier/
+ctrlKey     | /shift modifier/
+repeat      | false
+isComposing | false
+
+Set /device state/'s "pressed" object's value corresponding to
+/canonical key/ to false.
+
+Return success with data null
+
+== Dispatch a keyDown action ==
+
+Let /id/ be /action/'s id property.
+
+Let /value/ be /action/'s value property.
+
+# This is probably wrong if we implcitly cause a modifier to be
+# pressed
+
+For each item /item/ returned by the |key code to value algorithm| with arguments /state/ and
+/value/:
+
+  Unpack item into variables /key/, /code/, /canonical value/, and /location/.
+
+  # TODO: special handling of shift + etc. keys
+  If /device state/'s "pressed" object has a property corresponding to
+  /canonical value/ with value true let /repeat/ be true, otherwise
+  let /repeat/ be false.
+
+  Let /alt modifier/ be /device state/'s "alt" property
+
+  Let /ctrl modifier/ be /device state/'s "ctrl" property
+
+  Let /shift modifier/ be /device state/'s "shift" property
+
+  Let /target/ be the |current browsing context|'s |active element|.
+
+  Fire a trusted event with the interface KeyboardEvent, and properties
+  as in the following table:
+
+  type        | "keydown"
+  target      | /target/
+  detail      | 0
+  key         | /key/
+  code        | /code/
+  location    | /location/
+  altKey      | /alt modifier/
+  shiftKey    | /ctrl modifier/
+  ctrlKey     | /shift modifier/
+  repeat      | /repeat/
+  isComposing | false
+
+  Fire a trusted event with the interface KeyboardEvent, and properties
+  as in the following table:
+
+  type        | "keypress"
+  target      | /target/
+  detail      | 0
+  key         | /key/
+  code        | /code/
+  location    | /location/
+  altKey      | /alt modifier/
+  shiftKey    | /ctrl modifier/
+  ctrlKey     | /shift modifier/
+  repeat      | /repeat/
+  isComposing | false
+
+  Set /device state/'s "pressed" object's value corresponding to
+  /canonical key/ to true.
+
+Return success with data null
+
+== Dispatch a keyUp action ==
+
+Let /id/ be /action/'s id property.
+
+Let /value/ be /action/'s value property.
+
+For each item /item/ returned by the |key code to value algorithm| with arguments /state/ and
+/value/:
+
+  Unpack item into variables /key/, /code/, /canonical value/, and /location/.
+
+  If /device state/'s "pressed" object does not have a property corresponding to
+  /canonical value/ with value true continue onto the next item in
+  this loop.
+
+  Let /alt modifier/ be /device state/'s "alt" property
+
+  Let /ctrl modifier/ be /device state/'s "ctrl" property
+
+  Let /shift modifier/ be /device state/'s "shift" property
+
+  Let /target/ be the |current browsing context|'s |active element|.
+
+  Fire a trusted event with the interface KeyboardEvent, and properties
+  as in the following table:
+
+    type        | "keyup"
+    target      | /target/
+    detail      | 0
+    key         | /key/
+    code        | /code/
+    location    | /location/
+    altKey      | /alt modifier/
+    shiftKey    | /ctrl modifier/
+    ctrlKey     | /shift modifier/
+    repeat      | false
+    isComposing | false
+
+  Set /device state/'s "pressed" object's value corresponding to
+  /canonical key/ to false.
+
+Return success with data null
+
+== Key Code to Value algorithm ==
+
+[This is basically a big table that maps /value/ to the corresponding
+keycode, and which modifiers are implied, given a 102 key us PC
+keyboard. Then we modify the state to ensure that any necessary
+modifiers are pressed]
+
+TODO: figure out how to handle the case where we request "A" and shift
+is not pressed or request "a" and shift is already pressed.
+
+== Dispatch a pointer up action ==
+
+Let /button/ be action's /button/ property.
+
+/Initialize a pointer device/ with arguments /device state/ and /button/.
+
+Let /button state/ be the value of /device state/'s /button/ property.
+
+If /button state/ doesn't have a property named
+/pressed/ with value true return.
+
+Let /x/ be the value of /device state/'s x property.
+
+Let /y/ be the value of /device state/'s y property.
+
+// TODO: get the coordinate system right here
+Let /target/ be the result of running [something like
+getElementFromPoint?] with arguments x,y
+
+Let /pointer type/ be the value of action's /pointer type/ property
+and /primary/ be the value of action's /primary/ property.
+
+Dispatch a trusted pointer event with the following properties:
+
+    type        | "pointerup"
+    target      | /target/
+    detail      | 0
+    pointerType | /pointer type/
+    primary     | /primary/
+    button      | /button/
+    [TODO: get this actually right]
+
+If primary is true, dispatch a trusted mouse event with the following
+properties:
+
+// TODO
+
+Return success with data null
+
+== Dispatch a pointer down action ==
+
+Let /button/ be action's /button/ property.
+
+/Initialize a pointer device/ with arguments /device state/ and /button/.
+
+Let /button state/ be the value of /device state/'s /button/ property.
+
+Let /target webelement/ be action's /target/ property.
+
+If /target webelement/ is defined:
+  Run the |algorithm for resolving pointer coordinates| with arguments
+  /target webelement/ and /action/. If this results in an error return
+  that error, otherwise let /target x/, /target y/ be result's data.
+
+  //TODO: Not sure if this is right.
+  If running getElementsFroimPoint with arguments /x/ and /y/ does not
+  return a result including element, return error with status Element
+  Not Visible.
+
+  If /action/'s type property is "mouse" or any of /device state/'s
+  button properties has a value with property pressed set to true:
+
+    Let /move action/ be an action object with properties in the table below:
+
+      x           | /target x/
+      y           | /target y/
+      primary     | /action/'s primary property
+      pointerType | /action/'s /pointerType/ property
+
+   Let /result/ be the result of dispatching a pointer move action with
+   arguments /device state/, /conditions/ and /move action/
+
+   If /result/ is an error return /result/.
+
+Let /x/ be the value of /device state/'s x property.
+
+Let /y/ be the value of /device state/'s y property.
+
+// TODO: get the coordinate system right here
+// TODO: need to check that this works with pointer-events CSS properties
+Let /target/ be the result of running [something like
+getElementFromPoint?] with arguments x,y
+
+Let /pointer type/ be the value of action's /pointer type/ property
+and /primary/ be the value of action's /primary/ property.
+
+Dispatch a trusted pointer event with the following properties:
+
+    type        | "pointerdown"
+    target      | /target/
+    detail      | 0
+    pointerType | /pointer type/
+    primary     | /primary/
+    button      | /button/
+    [TODO: get this actually right]
+
+If primary is true, dispatch a trusted mouse event with the following
+properties:
+
+// TODO
+
+Let /button state/'s pressed property be true.
+
+Return success with data null
+
+== Dispatch a pointer move action ==
+
+/Initialize a pointer device/ with arguments /device state/ and undefined.
+
+Let /target webelement/ be action's /target/ property.
+
+If /target webelement/ is defined:
+  Run the |algorithm for resolving pointer coordinates| with arguments
+  /target webelement/ and /action/. If this results in an error return
+  that error, otherwise let /target x/, /target y/ be result's data.
+Otherwise:
+  Let /target x/, /target y/ be the value of /action/'s x and y properties,
+  respectively.
+
+NOTE: The description given in this section is supposed to be
+equivalent to generating OS-level pointer movement events on platforms
+where that is possible. Although the text here is normative, any
+observable differences between the effect of the below algorithm and
+the effect of e.g. moving a real mouse should be considered a bug in
+the spec
+
+//TODO: I bet this doesn't work for scrolling
+
+Let /target points/ be an equally spaced list of co-ordinates on
+the straight line path between the position given by /device state/'s
+x and y properties (exclusive) and the position given by (/target x/,
+/target y/) (inclusive), then round this list to integers. The number
+of elements in this list is implementation defined, but must be
+sufficient that there is at least one element per vsync for the
+duration of the current tick (//TODO: this is not well defined),
+unless doing so would generate duplicate entries in the list of
+coordinates.
+
+For each co-ordinate /new x/, /new y/ in /target points/:
+  Let /new elements/ be the set of elements returned by
+  /getElementsFromPoint/ with arguments /target x/ and /target y/.
+
+  //TODO: the ordering here is probably all wrong
+
+  For each element /element/ in /device state/'s elements property that is not
+  in /new elements/:
+    //TODO: Generate events to do with the pointer leaving the element
+
+  For each element /element/ in /new elements/ that is not in /device state/'s
+  elements property:
+    /TODO: Generate events to do with the pointer entering the element
+
+  //Generate all mousemove events
+
+  Let /device state/'s /elements/ property be /new elements/
+
+  Let /device state/'s x property be /new x/
+
+  Let /device state/'s y property be /new y/
+
+Return success with data null.
+
+== Dispatch a pointer cancel action ==
+
+//TODO: Not sure. Just fire an event called pointerCancel with
+appropriate properties, I guess
+
+== Initialize a pointer device ==
+
+This takes two arguments, /device state/ and /button/.
+
+If /button/ is defined and /device state/ doesn't have a property
+named /button/ let /device state/'s button property be an object with
+properties ("pressed": false).
+
+If /device state/ doesn't have a property named x, let /device
+state/'s x property be [not sure, probably either undefined for
+non-primary pointer types or the OS cursor x coordinate].
+
+If /device state/ doesn't have a property named /y/, let /device
+state/'s y property be [not sure, probably either undefined for
+non-primary pointer types or the OS cursor y coordinate].
+
+If /device state/ doesn't have a property named /elements/ let
+/device state/'s elements property be an empty set.
+
+== Button properties ==
+
+//TODO this entire setup is awful
+
+These are any properties of a device state object which have keys
+corresponding to button identifiers i.e. integer values
+
+== Algorithm for resolving pointer coordinates ==
+
+This takes two arguments, /target webelement/ and /action/
+
+If /target webelement/ is not a web element, return error with status
+|no such element|.
+
+Let /target element/ be the element corresponding to /target
+webelement/
+
+// TODO: is this right, or should it be possible to use a zero width
+element and define an offset that takes you onto a different element.
+If /target element/ has width 0 or height 0 return error with status
+Element Not Visible.
+
+//TODO: flesh this out
+
+If /action/'s x property is not undefined, let /target x/ be the x
+coordinate of the left edge of /target element/, plus /action/'s x
+property. Otherwise let /target x/ be the x coordinate of the midpoint
+of the element.
+
+If /action/'s y property is not undefined, let /target y/ be the y
+coordinate of the top edge of /target element/, plus /action/'s y
+property. Otherwise let /target y/ be the y coordinate of the midpoint
+of the element.
+
+Return success with data /target x/, /target y/.

@@ -1,0 +1,237 @@
+== Parsing the actions ==
+
+This is the main entry point to parsing an actions command. It takes
+the JSON object from the request body and returns a (conceptual) list
+of lists, with each sub-list being an ordered list of the actions that
+occur in a single tick. The actions themselves are represented by
+conceptual objects with keys and properties that depend on their
+action type.
+
+Let /actions/ be the result of getting a property named "actions".
+
+If /actions/ is undefined or is not an Array, return error with status invalid argument.
+
+Let /simultaneous actions/ be an empty list.
+
+For each indexed property /action sequence/ in /actions/:
+
+   If /action sequence/ is not an array, return error with status
+   invalid argument
+
+   |Process the action sequence|. If that results in an error return
+    that error, otherwise let /sequence data/ be the returned data.
+
+   For each /action/ in /sequence data/:
+
+     Let /i/ be the index of that action in sequence data
+
+     If /simultaneous actions/ has no entry at index /i/ let the
+     entry at index /i/ be a new list.
+
+     Append /action/ to the list at entry /i/ in /simultaneous actions/
+
+Return success with data /simultaneous actions/
+
+== Processing an action sequence ==
+
+Let /id/ be the result of getting a property named "id" from /action
+seequence/.
+
+If /id/ is undefined, let /id/ be a new uuid. Otherwise if /id/ is not
+a string return error with status invalid argument.
+
+Let /type/ be the result of getting a property named "type" from
+/action sequence/.
+
+If /type/ is not "key" or "pointer" return error with status invalid
+argument.
+
+Let /actions items/ be the result of getting a property named
+"actions" from /action sequence/.
+
+If /action items/ is not an array, return error with status invalid argument.
+
+If /type/ is equal to "pointer", let /parameters data/ be the result of
+getting a property named "parameters" from action.
+
+If /parameters data/ is undefined, let /parameters/ be the |default
+pointer parameters|. Otherwise, if /parameters data/ is not an object
+return error with status invalid argument. Otherwise |process pointer
+parameters| with argument /parameters data/. If this results in an
+error, return that error, let /parameters/ be the data returned.
+
+Let /actions/ be a new list
+
+For each /action item/ in /action items/:
+
+   If /action item/ is not an object return error with status /invalid
+   argument/.
+
+   If /type/ is "key" |process a key action| with parameters /id/ and
+   /action item/. If this results in error return that error,
+   otherwise let /action/ be the result's data.
+
+   If /type/ is "pointer" |process a pointer action| with parameters
+   /id/, /parameters/ and /action item/. If this results in error
+   return that error, otherwise let /action/ be the result's data.
+
+   Append /actions/ to action.
+
+Return success with data /actions/.
+
+== Default pointer parameters ==
+
+The default pointer parameters are an object properties
+"pointerType": "mouse" and "primary": true.
+
+== Processing pointer parameters ==
+
+Let /pointer type/ be the result of getting a property named
+"pointerType" from /parameters data/.
+
+If /pointer type/ is undefined let /pointer type/ be "mouse"
+
+If /pointer type/ is not one of the values "mouse", "pen", "touch",
+return error with status invalid argument.
+
+Let /primary/ be the result of getting a property named "primary" from
+/parameters data/,
+
+If /primary/ is undefined let /primary/ be true.
+
+If primary is not a boolean, return error with status invalid argument.
+
+Return success with data that is an object with properties
+"pointerType": /pointer type/ and "primary": /primary/
+
+== Processing a key action ==
+
+Let /type/ be the result of getting a property named "type" from
+/action/.
+
+If /type/ is not one of the values "keyUp", "keyDown", "pause", return error
+with status invalid argument
+
+If type is "pause" return the result of processing a "pause" action
+with arguments /id/ and /action/.
+
+Let /value/ be the result of getting a property named "value" from /action/.
+
+If value is not a string containing a single unicode codepoint, return
+error with status invalid argument.
+
+Return success with data that is an object with properties id /id/,
+type "key", subtype /type/ and value /value/.
+
+== Processing a pointer action ==
+
+Let /type/ be the result of getting a property named "type" from
+/action/.
+
+If /type/ is not one of the values "pointerUp", "pointerDown",
+"pointerMove", "pointerCancel" or "pause" return error with status invalid
+argument.
+
+If type is "pause" return the result of processing a "pause" action
+with arguments /id/ and /action/.
+
+Let /pointer type/ be equal to the "pointerType" property of /parameters/.
+
+Let /primary/ be equal to the "primary" property of /parameters/.
+
+Let /result/ be an object with properties id /id/, type "key", subtype
+/type/, pointer type /pointer type/ and primary /primary/.
+
+If "type" is not "pointerCancel":
+  match /type/:
+    "pointerUp": |Process a pointer up action| /action/.
+    "pointerDown": |Process a pointer down action| /action/.
+    "pointerMove": |Process a pointer move action| /action/.
+
+  If the step above results in an error return that error otherwise let
+  /subtype data/ be the result's data
+
+  For each property in /subtype data/ set a property with the same
+  name in /result/ with the property's value in /subtype data/
+
+Return success with data /result/
+
+== Processing a pause action ==
+
+Let /duration/ be the result of getting a property named "duration" from
+/action/.
+
+If /duration/ is not an integer greater than or equal to 0, return
+error with status invalid argument.
+
+Return success with data that is an object with properties id /id/,
+type "general", subtype "pause" and duration /duration/.
+
+== Processing a pointer up action ==
+
+Let /button/ be the result of getting a property named "button" from
+/action/.
+
+If /button/ is not an integer greater than or equal to 0, return
+error with status invalid argument.
+
+Return success with data that is an object with property button and
+value /button/.
+
+== Processing a pointer down action ==
+
+Let /element/ be the result of getting a property named "element" from
+/action/.
+
+If /element/ is undefined or if /element/ represents a web element, let
+/target/ be /element/. Otherwise return error with status invalid
+argument.
+
+[Note: the target is not deserialized until the action is dispatched]
+
+Let /button/ be the result of getting a property named "button" from
+/action/.
+
+If /button/ is not an integer greater than or equal to 0, return
+error with status invalid argument.
+
+Let /x/ be the result of getting a property named "x" from
+/action/.
+
+If /x/ is not undefined and is not an integer greater than or equal to
+0, return error with status invalid argument.
+
+Let /y/ be the result of getting a property named "x" from
+/action/.
+
+If /y/ is not undefined and is not an integer greater than or equal to
+0, return error with status invalid argument.
+
+Return success with data that is an object with properties element,
+/target/, button /button/, x /x/ and y /y/.
+
+== Processing a pointer move action ==
+
+Let /element/ be the result of getting a property named "element" from
+/action/.
+
+If /element/ is undefined or if /element/ represents a web element, let
+/target/ be /element/. Otherwise return error with status invalid
+argument.
+
+[Note: the target is not deserialized until the action is dispatched]
+
+Let /x/ be the result of getting a property named "x" from
+/action/.
+
+If /x/ is not undefined and is not an integer greater than or equal to
+0, return error with status invalid argument.
+
+Let /y/ be the result of getting a property named "x" from
+/action/.
+
+If /y/ is not undefined and is not an integer greater than or equal to
+0, return error with status invalid argument.
+
+Return success with data that is an object with properties element,
+/target/, x /x/ and y /y/.
